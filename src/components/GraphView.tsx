@@ -3,8 +3,9 @@ import * as d3 from 'd3';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowsClockwise, MagnifyingGlassMinus, MagnifyingGlassPlus, Target, Path } from '@phosphor-icons/react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { ArrowsClockwise, MagnifyingGlassMinus, MagnifyingGlassPlus, Target, Path, Play, Pause } from '@phosphor-icons/react';
 import type { Entity, Relationship, EntityType, RelationshipType } from '@/lib/types';
 
 interface GraphViewProps {
@@ -52,11 +53,14 @@ const entityLabels: Record<EntityType, string> = {
 
 export function GraphView({ entities, relationships, onEntitySelect }: GraphViewProps) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const animationFrameRef = useRef<number>();
+  
   const [selectedTypes, setSelectedTypes] = useState<EntityType[]>([]);
   const [zoom, setZoom] = useState(1);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [focusedNode, setFocusedNode] = useState<GraphNode | null>(null);
   const [showChainOnly, setShowChainOnly] = useState(false);
+  const [animateFlow, setAnimateFlow] = useState(true);
 
   const getChainEntitiesAndRelationships = () => {
     const conceptIds = new Set(entities.filter(e => e.type === 'concept').map(e => e.id));
@@ -207,17 +211,9 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
 
     svg.call(zoomBehavior);
 
-    const link = g.append('g')
-      .selectAll('line')
-      .data(links)
-      .join('line')
-      .attr('stroke', '#35354a')
-      .attr('stroke-opacity', 0.6)
-      .attr('stroke-width', 2)
-      .attr('class', 'graph-link')
-      .attr('marker-end', 'url(#arrowhead)');
-
-    g.append('defs').append('marker')
+    const defs = g.append('defs');
+    
+    defs.append('marker')
       .attr('id', 'arrowhead')
       .attr('viewBox', '0 -5 10 10')
       .attr('refX', 35)
@@ -228,6 +224,53 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
       .append('path')
       .attr('d', 'M0,-5L10,0L0,5')
       .attr('fill', '#35354a');
+
+    defs.append('marker')
+      .attr('id', 'arrowhead-flow')
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 35)
+      .attr('refY', 0)
+      .attr('markerWidth', 7)
+      .attr('markerHeight', 7)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M0,-5L10,0L0,5')
+      .attr('fill', '#00ff88');
+
+    const linkGroup = g.append('g');
+
+    const link = linkGroup
+      .selectAll('line')
+      .data(links)
+      .join('line')
+      .attr('stroke', '#35354a')
+      .attr('stroke-opacity', 0.6)
+      .attr('stroke-width', 2)
+      .attr('class', 'graph-link')
+      .attr('marker-end', 'url(#arrowhead)');
+
+    const flowPaths = linkGroup
+      .selectAll('circle.flow-particle')
+      .data(links.filter(l => {
+        const sourceId = typeof l.source === 'string' ? l.source : l.source.id;
+        const targetId = typeof l.target === 'string' ? l.target : l.target.id;
+        const source = nodes.find(n => n.id === sourceId);
+        const target = nodes.find(n => n.id === targetId);
+        if (!source || !target) return false;
+        return (source.type === 'concept' && target.type === 'model') ||
+               (source.type === 'model' && target.type === 'trade') ||
+               (l.type === 'CONCEPT_USED_IN_MODEL' || l.type === 'MODEL_PRODUCES_TRADE');
+      }))
+      .join('circle')
+      .attr('class', 'flow-particle')
+      .attr('r', 4)
+      .attr('fill', d => {
+        const sourceId = typeof d.source === 'string' ? d.source : d.source.id;
+        const source = nodes.find(n => n.id === sourceId);
+        return source?.type === 'concept' ? '#00ff88' : '#00d4ff';
+      })
+      .attr('opacity', 0)
+      .style('pointer-events', 'none');
 
     const linkLabels = g.append('g')
       .selectAll('text')
@@ -251,6 +294,52 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
         };
         return typeMap[d.type] || '';
       });
+
+    const animateFlowParticles = () => {
+      if (!animateFlow) {
+        flowPaths.attr('opacity', 0);
+        return;
+      }
+
+      const duration = 2000;
+      const startTime = Date.now();
+
+      const animate = () => {
+        if (!animateFlow) {
+          flowPaths.attr('opacity', 0);
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+          }
+          return;
+        }
+
+        const elapsed = Date.now() - startTime;
+        const progress = (elapsed % duration) / duration;
+
+        flowPaths.each(function(d) {
+          const source = d.source as GraphNode;
+          const target = d.target as GraphNode;
+          
+          if (!source.x || !source.y || !target.x || !target.y) return;
+
+          const x = source.x + (target.x - source.x) * progress;
+          const y = source.y + (target.y - source.y) * progress;
+
+          const fadeIn = progress < 0.1 ? progress / 0.1 : 1;
+          const fadeOut = progress > 0.9 ? (1 - progress) / 0.1 : 1;
+          const opacity = Math.min(fadeIn, fadeOut) * 0.8;
+
+          d3.select(this)
+            .attr('cx', x)
+            .attr('cy', y)
+            .attr('opacity', opacity);
+        });
+
+        animationFrameRef.current = requestAnimationFrame(animate);
+      };
+
+      animate();
+    };
 
     const drag = d3.drag<SVGGElement, GraphNode>()
       .on('start', (event, d) => {
@@ -368,6 +457,8 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
         setHoveredNode(d);
         d3.select(event.currentTarget)
           .select('circle')
+          .transition()
+          .duration(200)
           .attr('r', 35)
           .attr('stroke-width', 5);
       }
@@ -377,6 +468,8 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
         setHoveredNode(null);
         d3.select(event.currentTarget)
           .select('circle')
+          .transition()
+          .duration(200)
           .attr('r', 30)
           .attr('stroke-width', 3);
       }
@@ -407,10 +500,15 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
       updateFocusMode(focusedNode.id);
     }
 
+    animateFlowParticles();
+
     return () => {
       simulation.stop();
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
     };
-  }, [filteredEntities, filteredRelationships, onEntitySelect, focusedNode]);
+  }, [filteredEntities, filteredRelationships, onEntitySelect, focusedNode, animateFlow]);
 
   const handleReset = () => {
     if (!svgRef.current) return;
@@ -488,6 +586,17 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card/50 border border-border">
+            <Label htmlFor="animate-flow" className="text-xs cursor-pointer">
+              Animate Flow
+            </Label>
+            <Switch
+              id="animate-flow"
+              checked={animateFlow}
+              onCheckedChange={setAnimateFlow}
+            />
+          </div>
+
           <Button
             variant={showChainOnly ? 'default' : 'outline'}
             size="sm"
@@ -497,9 +606,11 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
             <Path size={16} />
             {showChainOnly ? 'Chain View' : 'All Entities'}
           </Button>
+          
           <span className="text-xs text-muted-foreground">
             {filteredEntities.length} nodes · {filteredRelationships.length} edges
           </span>
+          
           <div className="flex items-center gap-1 border border-border rounded-lg p-1">
             <Button
               variant="ghost"
@@ -521,6 +632,7 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
               <MagnifyingGlassPlus size={16} />
             </Button>
           </div>
+          
           <Button
             variant="outline"
             size="sm"
@@ -585,9 +697,7 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
                 variant="ghost"
                 size="sm"
                 className="h-6 px-2 text-xs"
-                onClick={() => {
-                  setFocusedNode(null);
-                }}
+                onClick={() => setFocusedNode(null)}
               >
                 Clear
               </Button>
@@ -675,6 +785,7 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
               <li>• <span className="font-semibold text-accent">Shift+Click</span> node to focus connections</li>
               <li>• Click badges to filter by type</li>
               <li>• <span className="font-semibold text-accent">Chain View</span> shows only concept→model→trade paths</li>
+              <li>• <span className="font-semibold text-primary">Animate Flow</span> highlights the data flow from concepts to trades</li>
             </ul>
           </div>
         </div>

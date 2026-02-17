@@ -3,11 +3,12 @@ import { useKV } from '@github/spark/hooks';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
-import { Database, Tree, Upload, ChatsCircle } from '@phosphor-icons/react';
+import { Database, Tree, Upload, ChatsCircle, Graph } from '@phosphor-icons/react';
 import { DashboardView } from '@/components/DashboardView';
 import { ExplorerView } from '@/components/ExplorerView';
 import { UploadView } from '@/components/UploadView';
 import { ChatView } from '@/components/ChatView';
+import { GraphView } from '@/components/GraphView';
 import { EntityDetailDialog } from '@/components/EntityDetailDialog';
 import { processFile } from '@/lib/ai-processor';
 import { generateDemoData } from '@/lib/demo-data';
@@ -284,6 +285,10 @@ Provide a clear, concise answer. If you find relevant entities, mention them by 
               <Tree size={16} />
               Explorer
             </TabsTrigger>
+            <TabsTrigger value="graph" className="gap-2">
+              <Graph size={16} />
+              Graph
+            </TabsTrigger>
             <TabsTrigger value="upload" className="gap-2">
               <Upload size={16} />
               Upload
@@ -301,6 +306,14 @@ Provide a clear, concise answer. If you find relevant entities, mention them by 
           <TabsContent value="explorer">
             <ExplorerView 
               entities={safeEntities} 
+              onEntitySelect={handleEntitySelect}
+            />
+          </TabsContent>
+
+          <TabsContent value="graph">
+            <GraphView 
+              entities={safeEntities}
+              relationships={safeRelationships}
               onEntitySelect={handleEntitySelect}
             />
           </TabsContent>

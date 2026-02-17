@@ -47,6 +47,13 @@ This is a full-featured knowledge management system with AI agent processing, mu
 - **Progression**: User enters question → AI retrieves relevant entities using semantic search → LLM generates answer with citations → Results display with source links → User clicks citation → Entity detail opens
 - **Success criteria**: Relevant results returned for natural language queries, chat answers cite correct sources, clicking citations navigates to entities
 
+### AI Training & Pattern Discovery
+- **Functionality**: Analyzes user's complete trade history to discover personalized success patterns, failure modes, concept effectiveness, model performance, optimal trading times, and high-probability concept combinations; generates actionable insights tailored to the specific trader's strengths and weaknesses
+- **Purpose**: Transforms historical data into personalized intelligence that improves future trading decisions by revealing what specifically works for this trader
+- **Trigger**: User clicks "Train AI Model" button in Training view
+- **Progression**: Button click → Progress indicator (0-100%) → AI analyzes all trades → Pattern detection (concept combinations, session performance, pair specialization) → Concept/model scoring → Quality factor identification → Insight generation via LLM → Results display in tabs (Overview, Insights, Patterns, Concept Scores, Model Performance, Quality Factors) → User reviews personalized recommendations
+- **Success criteria**: Training completes within 30 seconds, patterns match actual trade data, insights are specific and actionable, win rates accurately calculated per concept/model, personalized profile shows trader's strengths/weaknesses clearly
+
 ### Real-Time Processing Feedback
 - **Functionality**: Live feed showing file-by-file parsing progress, entity extraction counts, validation results, warnings/errors
 - **Purpose**: Provides transparency during potentially long ingestion processes; builds trust in AI decisions

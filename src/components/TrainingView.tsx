@@ -184,7 +184,7 @@ export function TrainingView({ entities, relationships, onEntitySelect }: Traini
                 </div>
                 <p className="text-2xl font-bold mb-1">{trainingModel.tradesAnalyzed}</p>
                 <p className="text-xs text-muted-foreground">
-                  {winningTrades.length}W / {losingTrades.length}L
+                  {winningTrades.length}W / {losingTrades.length}L ({((winningTrades.length / trades.length) * 100).toFixed(0)}%)
                 </p>
               </Card>
 
@@ -212,30 +212,120 @@ export function TrainingView({ entities, relationships, onEntitySelect }: Traini
             </div>
 
             <Card className="p-6 bg-card/30">
+              <h3 className="font-semibold mb-4 flex items-center gap-2">
+                <Target size={20} className="text-primary" />
+                Your Trading Profile
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Best Performing Concepts</h4>
+                    <div className="space-y-2">
+                      {Object.entries(trainingModel.conceptScores)
+                        .filter(([_, score]) => score.sampleSize >= 2)
+                        .sort((a, b) => b[1].winRate - a[1].winRate)
+                        .slice(0, 3)
+                        .map(([name, score], idx) => (
+                          <div key={name} className="flex items-center justify-between">
+                            <span className="text-sm flex items-center gap-2">
+                              <span className="text-primary font-bold">#{idx + 1}</span>
+                              {name}
+                            </span>
+                            <Badge variant="default" className="text-xs">
+                              {(score.winRate * 100).toFixed(0)}%
+                            </Badge>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Best Performing Models</h4>
+                    <div className="space-y-2">
+                      {Object.entries(trainingModel.modelScores)
+                        .filter(([_, score]) => score.sampleSize >= 2)
+                        .sort((a, b) => b[1].winRate - a[1].winRate)
+                        .slice(0, 3)
+                        .map(([name, score], idx) => (
+                          <div key={name} className="flex items-center justify-between">
+                            <span className="text-sm flex items-center gap-2">
+                              <span className="text-primary font-bold">#{idx + 1}</span>
+                              {name}
+                            </span>
+                            <Badge variant="default" className="text-xs">
+                              {(score.winRate * 100).toFixed(0)}%
+                            </Badge>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Areas for Improvement</h4>
+                    <div className="space-y-2">
+                      {Object.entries(trainingModel.conceptScores)
+                        .filter(([_, score]) => score.sampleSize >= 2 && score.winRate < 0.5)
+                        .sort((a, b) => a[1].winRate - b[1].winRate)
+                        .slice(0, 3)
+                        .map(([name, score]) => (
+                          <div key={name} className="flex items-center justify-between">
+                            <span className="text-sm flex items-center gap-2">
+                              <Warning size={16} className="text-warning" />
+                              {name}
+                            </span>
+                            <Badge variant="outline" className="text-xs">
+                              {(score.winRate * 100).toFixed(0)}%
+                            </Badge>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-semibold mb-3 text-muted-foreground">Key Success Factors</h4>
+                    <div className="space-y-2">
+                      {trainingModel.setupQualityFactors.slice(0, 3).map((factor, idx) => (
+                        <div key={idx} className="flex items-start gap-2">
+                          <CheckCircle size={16} className="text-primary mt-0.5 flex-shrink-0" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium">{factor.factor}</p>
+                            <p className="text-xs text-muted-foreground">+{factor.impact.toFixed(1)}% impact</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-6 bg-card/30">
               <h3 className="font-semibold mb-4">Training Summary</h3>
               <div className="space-y-3 text-sm">
                 <div className="flex items-start gap-2">
                   <CheckCircle size={20} className="text-primary mt-0.5 flex-shrink-0" />
                   <p>
-                    Analyzed {trainingModel.tradesAnalyzed} trades to identify patterns and correlations
+                    Analyzed {trainingModel.tradesAnalyzed} trades to identify patterns and correlations unique to your trading style
                   </p>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle size={20} className="text-primary mt-0.5 flex-shrink-0" />
                   <p>
-                    Calculated win rates for {Object.keys(trainingModel.conceptScores).length} concepts and {Object.keys(trainingModel.modelScores).length} models
+                    Calculated win rates for {Object.keys(trainingModel.conceptScores).length} concepts and {Object.keys(trainingModel.modelScores).length} models based on YOUR historical performance
                   </p>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle size={20} className="text-primary mt-0.5 flex-shrink-0" />
                   <p>
-                    Identified {trainingModel.setupQualityFactors.length} key factors that improve setup quality
+                    Identified {trainingModel.setupQualityFactors.length} key factors that specifically improve YOUR setup quality
                   </p>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle size={20} className="text-primary mt-0.5 flex-shrink-0" />
                   <p>
-                    Generated {trainingModel.insights.filter(i => i.priority === 'high').length} high-priority actionable insights for your trading
+                    Generated {trainingModel.insights.filter(i => i.priority === 'high').length} high-priority personalized insights tailored to your strengths and weaknesses
                   </p>
                 </div>
               </div>

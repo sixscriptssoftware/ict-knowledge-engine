@@ -158,6 +158,142 @@ async function analyzeSuccessPatterns(
     }
   }
 
+  const sessionPatterns = analyzeSessionSuccessPatterns(winningTrades, losingTrades);
+  patterns.push(...sessionPatterns);
+
+  const pairPatterns = analyzePairSuccessPatterns(winningTrades, losingTrades);
+  patterns.push(...pairPatterns);
+
+  return patterns;
+}
+
+function analyzeSessionSuccessPatterns(
+  winningTrades: Entity[],
+  losingTrades: Entity[]
+): TrainingPattern[] {
+  const patterns: TrainingPattern[] = [];
+  const sessionStats = new Map<string, { wins: Entity[]; losses: Entity[] }>();
+
+  for (const trade of winningTrades) {
+    const session = trade.metadata?.time?.session || trade.metadata?.setup?.session;
+    if (session) {
+      if (!sessionStats.has(session)) {
+        sessionStats.set(session, { wins: [], losses: [] });
+      }
+      sessionStats.get(session)!.wins.push(trade);
+    }
+  }
+
+  for (const trade of losingTrades) {
+    const session = trade.metadata?.time?.session || trade.metadata?.setup?.session;
+    if (session) {
+      if (!sessionStats.has(session)) {
+        sessionStats.set(session, { wins: [], losses: [] });
+      }
+      sessionStats.get(session)!.losses.push(trade);
+    }
+  }
+
+  for (const [session, stats] of sessionStats.entries()) {
+    const total = stats.wins.length + stats.losses.length;
+    if (total >= 3) {
+      const winRate = stats.wins.length / total;
+      if (winRate >= 0.7) {
+        patterns.push({
+          id: `session-success-${Date.now()}-${Math.random()}`,
+          type: 'success',
+          name: `Strong ${session} Session Performance`,
+          description: `You have a ${(winRate * 100).toFixed(0)}% win rate during ${session} sessions across ${total} trades`,
+          confidence: winRate,
+          supportingTrades: stats.wins,
+          concepts: [],
+          models: [],
+          conditions: [`Trades during ${session} session`],
+          recommendations: [
+            `Focus your trading activity on ${session} sessions where you perform best`,
+            `Your edge is strongest during ${session} market conditions`,
+            `Consider increasing position size during confirmed ${session} setups`
+          ],
+          learnedAt: new Date().toISOString()
+        });
+      }
+    }
+  }
+
+  return patterns;
+}
+
+function analyzePairSuccessPatterns(
+  winningTrades: Entity[],
+  losingTrades: Entity[]
+): TrainingPattern[] {
+  const patterns: TrainingPattern[] = [];
+  const pairStats = new Map<string, { wins: Entity[]; losses: Entity[] }>();
+
+  for (const trade of winningTrades) {
+    const pair = trade.metadata?.market?.pair;
+    if (pair) {
+      if (!pairStats.has(pair)) {
+        pairStats.set(pair, { wins: [], losses: [] });
+      }
+      pairStats.get(pair)!.wins.push(trade);
+    }
+  }
+
+  for (const trade of losingTrades) {
+    const pair = trade.metadata?.market?.pair;
+    if (pair) {
+      if (!pairStats.has(pair)) {
+        pairStats.set(pair, { wins: [], losses: [] });
+      }
+      pairStats.get(pair)!.losses.push(trade);
+    }
+  }
+
+  for (const [pair, stats] of pairStats.entries()) {
+    const total = stats.wins.length + stats.losses.length;
+    if (total >= 3) {
+      const winRate = stats.wins.length / total;
+      if (winRate >= 0.7) {
+        patterns.push({
+          id: `pair-success-${Date.now()}-${Math.random()}`,
+          type: 'success',
+          name: `${pair} Excellence`,
+          description: `You excel at trading ${pair} with ${(winRate * 100).toFixed(0)}% win rate over ${total} trades`,
+          confidence: winRate,
+          supportingTrades: stats.wins,
+          concepts: [],
+          models: [],
+          conditions: [`Trading ${pair}`],
+          recommendations: [
+            `Prioritize ${pair} setups in your watchlist`,
+            `You've demonstrated strong understanding of ${pair} price action`,
+            `Consider specializing in ${pair} to deepen your edge`
+          ],
+          learnedAt: new Date().toISOString()
+        });
+      } else if (winRate < 0.4) {
+        patterns.push({
+          id: `pair-failure-${Date.now()}-${Math.random()}`,
+          type: 'failure',
+          name: `${pair} Weakness`,
+          description: `${pair} shows only ${(winRate * 100).toFixed(0)}% win rate across ${total} trades`,
+          confidence: 1 - winRate,
+          supportingTrades: stats.losses,
+          concepts: [],
+          models: [],
+          conditions: [`Trading ${pair}`],
+          recommendations: [
+            `Avoid or reduce exposure to ${pair} until you improve your analysis`,
+            `Study ${pair} price action more deeply before taking trades`,
+            `Consider paper trading ${pair} to build confidence`
+          ],
+          learnedAt: new Date().toISOString()
+        });
+      }
+    }
+  }
+
   return patterns;
 }
 
@@ -373,97 +509,184 @@ async function generateTrainingInsights(
 ): Promise<TrainingInsight[]> {
   const insights: TrainingInsight[] = [];
 
-  const topConcepts = Object.entries(conceptScores)
-    .filter(([_, score]) => score.sampleSize >= 2)
-    .sort((a, b) => b[1].winRate - a[1].winRate)
-    .slice(0, 3);
+  const winningTrades = trades.filter(t => 
+    t.metadata?.meta?.example_type === 'positive' || 
+    t.metadata?.result === 'win' ||
+    t.metadata?.execution?.result === 'WIN'
+  );
 
-  if (topConcepts.length > 0) {
-    const [topName, topScore] = topConcepts[0];
-    insights.push({
-      category: 'concept_effectiveness',
-      insight: `"${topName}" shows highest effectiveness with ${(topScore.winRate * 100).toFixed(0)}% win rate`,
-      evidence: [
-        `Sample size: ${topScore.sampleSize} trades`,
-        topScore.avgGrade ? `Average setup quality: ${topScore.avgGrade.toFixed(1)}/10` : '',
-        `Outperforms other concepts by ${((topScore.winRate - 0.5) * 100).toFixed(0)}%`
-      ].filter(Boolean),
-      actionable: `Prioritize identifying "${topName}" in your pre-trade analysis. Look for high-probability setups featuring this concept.`,
-      priority: 'high'
-    });
-  }
+  const losingTrades = trades.filter(t => 
+    t.metadata?.meta?.example_type === 'negative' || 
+    t.metadata?.result === 'loss' ||
+    t.metadata?.execution?.result === 'LOSS'
+  );
 
-  const weakConcepts = Object.entries(conceptScores)
-    .filter(([_, score]) => score.sampleSize >= 2 && score.winRate < 0.4)
-    .sort((a, b) => a[1].winRate - b[1].winRate)
-    .slice(0, 2);
+  const prompt = window.spark.llmPrompt`You are an expert ICT (Inner Circle Trader) trading coach analyzing a trader's historical performance to discover personalized success patterns and failure modes.
 
-  if (weakConcepts.length > 0) {
-    const [weakName, weakScore] = weakConcepts[0];
-    insights.push({
-      category: 'concept_effectiveness',
-      insight: `"${weakName}" shows low effectiveness with only ${(weakScore.winRate * 100).toFixed(0)}% win rate`,
-      evidence: [
-        `Sample size: ${weakScore.sampleSize} trades`,
-        `Below 50% win rate threshold`,
-        weakScore.avgGrade ? `Lower setup quality: ${weakScore.avgGrade.toFixed(1)}/10` : ''
-      ].filter(Boolean),
-      actionable: `Review your identification and application of "${weakName}". Consider additional confluence factors when using this concept.`,
-      priority: 'medium'
-    });
-  }
+TRADER'S DATA:
+- Total trades: ${trades.length}
+- Winning trades: ${winningTrades.length}
+- Losing trades: ${losingTrades.length}
+- Overall win rate: ${((winningTrades.length / trades.length) * 100).toFixed(1)}%
 
-  const topModels = Object.entries(modelScores)
-    .filter(([_, score]) => score.sampleSize >= 2)
-    .sort((a, b) => b[1].winRate - a[1].winRate)
-    .slice(0, 2);
+CONCEPT PERFORMANCE:
+${Object.entries(conceptScores).map(([name, score]: [string, any]) => 
+  `- ${name}: ${(score.winRate * 100).toFixed(0)}% win rate (${score.sampleSize} trades)${score.avgGrade ? ` - avg quality ${score.avgGrade.toFixed(1)}/10` : ''}`
+).join('\n')}
 
-  if (topModels.length > 0) {
-    const [modelName, modelScore] = topModels[0];
-    insights.push({
-      category: 'model_performance',
-      insight: `"${modelName}" model demonstrates strong performance with ${(modelScore.winRate * 100).toFixed(0)}% win rate`,
-      evidence: [
-        `${modelScore.sampleSize} trades executed`,
-        modelScore.avgGrade ? `Average quality: ${modelScore.avgGrade.toFixed(1)}/10` : '',
-        'Consistent execution across sample'
-      ].filter(Boolean),
-      actionable: `Focus on mastering "${modelName}" setup identification. This model aligns well with your trading style.`,
-      priority: 'high'
-    });
-  }
+MODEL PERFORMANCE:
+${Object.entries(modelScores).map(([name, score]: [string, any]) => 
+  `- ${name}: ${(score.winRate * 100).toFixed(0)}% win rate (${score.sampleSize} trades)${score.avgGrade ? ` - avg quality ${score.avgGrade.toFixed(1)}/10` : ''}`
+).join('\n')}
 
-  if (qualityFactors.length > 0) {
-    const topFactor = qualityFactors[0];
-    insights.push({
-      category: 'setup_quality',
-      insight: `${topFactor.factor} significantly improves outcomes`,
-      evidence: [
-        topFactor.description,
-        `Impact: +${topFactor.impact.toFixed(1)}% improvement`
-      ],
-      actionable: `Always verify ${topFactor.factor.toLowerCase()} before entering trades. Make this a mandatory checkpoint in your trading plan.`,
-      priority: 'high'
-    });
-  }
+DISCOVERED PATTERNS:
+${patterns.map(p => 
+  `- ${p.type.toUpperCase()}: ${p.name} (${(p.confidence * 100).toFixed(0)}% confidence, ${p.supportingTrades.length} trades)`
+).join('\n')}
 
-  const failurePatterns = patterns.filter(p => p.type === 'failure');
-  if (failurePatterns.length > 0) {
-    const mostCommonFailure = failurePatterns.sort((a, b) => 
-      b.supportingTrades.length - a.supportingTrades.length
-    )[0];
+QUALITY FACTORS:
+${qualityFactors.map(f => `- ${f.factor}: +${f.impact.toFixed(1)}% impact`).join('\n')}
 
-    insights.push({
-      category: 'execution',
-      insight: mostCommonFailure.name,
-      evidence: [
-        mostCommonFailure.description,
-        `Occurred in ${mostCommonFailure.supportingTrades.length} trades`,
-        `Confidence: ${(mostCommonFailure.confidence * 100).toFixed(0)}%`
-      ],
-      actionable: mostCommonFailure.recommendations[0],
-      priority: 'high'
-    });
+SAMPLE WINNING TRADES:
+${winningTrades.slice(0, 3).map(t => JSON.stringify({
+  concepts: t.metadata?.pd_arrays || t.metadata?.concepts,
+  session: t.metadata?.time?.session || t.metadata?.setup?.session,
+  pair: t.metadata?.market?.pair,
+  model: t.metadata?.setup?.model,
+  grade: t.metadata?.grading?.total_score,
+  reasoning: t.metadata?.reasoning?.why_taken
+}, null, 2)).join('\n\n')}
+
+SAMPLE LOSING TRADES:
+${losingTrades.slice(0, 2).map(t => JSON.stringify({
+  concepts: t.metadata?.pd_arrays || t.metadata?.concepts,
+  session: t.metadata?.time?.session || t.metadata?.setup?.session,
+  pair: t.metadata?.market?.pair,
+  model: t.metadata?.setup?.model,
+  failure_analysis: t.metadata?.failure_analysis
+}, null, 2)).join('\n\n')}
+
+Based on this trader's specific data, generate 6-8 personalized, actionable insights that will genuinely improve their trading. Focus on:
+1. Their strongest performing concepts and why they work for this trader
+2. Concept combinations that consistently produce wins
+3. Weak areas that need improvement or avoidance
+4. Time/session patterns (when they trade best)
+5. Setup quality factors that matter most for their style
+6. Common failure modes unique to this trader
+7. Specific model recommendations based on their track record
+8. Confluence patterns that increase their edge
+
+Return a JSON object with a single "insights" property containing an array of insight objects with these fields:
+- category: one of "concept_effectiveness", "model_performance", "setup_quality", "execution", "market_conditions"
+- insight: a clear, specific insight statement (50-80 chars)
+- evidence: array of 2-4 data points supporting this insight
+- actionable: specific action the trader should take (be prescriptive, not vague)
+- priority: "high", "medium", or "low" based on impact potential
+
+Make insights highly specific to THIS trader's data. Reference actual numbers, concepts, and patterns from their trades.`;
+
+  try {
+    const response = await window.spark.llm(prompt, 'gpt-4o', true);
+    const parsed = JSON.parse(response);
+    
+    if (parsed.insights && Array.isArray(parsed.insights)) {
+      insights.push(...parsed.insights);
+    }
+  } catch (error) {
+    console.error('AI insight generation failed, using fallback:', error);
+    
+    const topConcepts = Object.entries(conceptScores)
+      .filter(([_, score]) => score.sampleSize >= 2)
+      .sort((a, b) => b[1].winRate - a[1].winRate)
+      .slice(0, 3);
+
+    if (topConcepts.length > 0) {
+      const [topName, topScore] = topConcepts[0];
+      insights.push({
+        category: 'concept_effectiveness',
+        insight: `"${topName}" shows highest effectiveness with ${(topScore.winRate * 100).toFixed(0)}% win rate`,
+        evidence: [
+          `Sample size: ${topScore.sampleSize} trades`,
+          topScore.avgGrade ? `Average setup quality: ${topScore.avgGrade.toFixed(1)}/10` : '',
+          `Outperforms other concepts by ${((topScore.winRate - 0.5) * 100).toFixed(0)}%`
+        ].filter(Boolean),
+        actionable: `Prioritize identifying "${topName}" in your pre-trade analysis. Look for high-probability setups featuring this concept.`,
+        priority: 'high'
+      });
+    }
+
+    const weakConcepts = Object.entries(conceptScores)
+      .filter(([_, score]) => score.sampleSize >= 2 && score.winRate < 0.4)
+      .sort((a, b) => a[1].winRate - b[1].winRate)
+      .slice(0, 2);
+
+    if (weakConcepts.length > 0) {
+      const [weakName, weakScore] = weakConcepts[0];
+      insights.push({
+        category: 'concept_effectiveness',
+        insight: `"${weakName}" shows low effectiveness with only ${(weakScore.winRate * 100).toFixed(0)}% win rate`,
+        evidence: [
+          `Sample size: ${weakScore.sampleSize} trades`,
+          `Below 50% win rate threshold`,
+          weakScore.avgGrade ? `Lower setup quality: ${weakScore.avgGrade.toFixed(1)}/10` : ''
+        ].filter(Boolean),
+        actionable: `Review your identification and application of "${weakName}". Consider additional confluence factors when using this concept.`,
+        priority: 'medium'
+      });
+    }
+
+    const topModels = Object.entries(modelScores)
+      .filter(([_, score]) => score.sampleSize >= 2)
+      .sort((a, b) => b[1].winRate - a[1].winRate)
+      .slice(0, 2);
+
+    if (topModels.length > 0) {
+      const [modelName, modelScore] = topModels[0];
+      insights.push({
+        category: 'model_performance',
+        insight: `"${modelName}" model demonstrates strong performance with ${(modelScore.winRate * 100).toFixed(0)}% win rate`,
+        evidence: [
+          `${modelScore.sampleSize} trades executed`,
+          modelScore.avgGrade ? `Average quality: ${modelScore.avgGrade.toFixed(1)}/10` : '',
+          'Consistent execution across sample'
+        ].filter(Boolean),
+        actionable: `Focus on mastering "${modelName}" setup identification. This model aligns well with your trading style.`,
+        priority: 'high'
+      });
+    }
+
+    if (qualityFactors.length > 0) {
+      const topFactor = qualityFactors[0];
+      insights.push({
+        category: 'setup_quality',
+        insight: `${topFactor.factor} significantly improves outcomes`,
+        evidence: [
+          topFactor.description,
+          `Impact: +${topFactor.impact.toFixed(1)}% improvement`
+        ],
+        actionable: `Always verify ${topFactor.factor.toLowerCase()} before entering trades. Make this a mandatory checkpoint in your trading plan.`,
+        priority: 'high'
+      });
+    }
+
+    const failurePatterns = patterns.filter(p => p.type === 'failure');
+    if (failurePatterns.length > 0) {
+      const mostCommonFailure = failurePatterns.sort((a, b) => 
+        b.supportingTrades.length - a.supportingTrades.length
+      )[0];
+
+      insights.push({
+        category: 'execution',
+        insight: mostCommonFailure.name,
+        evidence: [
+          mostCommonFailure.description,
+          `Occurred in ${mostCommonFailure.supportingTrades.length} trades`,
+          `Confidence: ${(mostCommonFailure.confidence * 100).toFixed(0)}%`
+        ],
+        actionable: mostCommonFailure.recommendations[0],
+        priority: 'high'
+      });
+    }
   }
 
   return insights;

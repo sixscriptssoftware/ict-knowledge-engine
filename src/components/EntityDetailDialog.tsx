@@ -132,37 +132,95 @@ export function EntityDetailDialog({
 
             <TabsContent value="relationships" className="mt-0">
               {relatedEntities.length > 0 ? (
-                <div className="space-y-3">
-                  {relatedEntities.map(({ relationship, entity: relatedEntity }) => {
-                    if (!relatedEntity) return null;
-                    return (
-                      <div
-                        key={relationship.id}
-                        className="p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors cursor-pointer"
-                        onClick={() => {
-                          onEntityClick(relatedEntity);
-                        }}
-                      >
-                        <div className="flex items-start gap-3">
-                          <span className="text-2xl">{getEntityTypeIcon(relatedEntity.type)}</span>
-                          <div className="flex-1">
-                            <p className="font-semibold">{relatedEntity.name}</p>
-                            <Badge variant="secondary" className="text-xs mt-1">
-                              {relationship.type.replace(/_/g, ' ')}
-                            </Badge>
-                            {relatedEntity.description && (
-                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                                {relatedEntity.description}
-                              </p>
-                            )}
-                          </div>
+                <div className="space-y-4">
+                  {(() => {
+                    const byType = relatedEntities.reduce((acc, item) => {
+                      if (!item.entity) return acc;
+                      const relType = item.relationship.type;
+                      if (!acc[relType]) acc[relType] = [];
+                      acc[relType].push(item);
+                      return acc;
+                    }, {} as Record<string, typeof relatedEntities>);
+
+                    const relationshipLabels: Record<string, { label: string; description: string }> = {
+                      'CONCEPT_USED_IN_MODEL': { label: 'Used in Models', description: 'Models that incorporate this concept' },
+                      'MODEL_PRODUCES_TRADE': { label: 'Produces Trades', description: 'Trades generated using this model' },
+                      'CONCEPT_RELATED_TO': { label: 'Related Concepts', description: 'Other concepts with connections' },
+                      'CONCEPT_DETECTED_BY': { label: 'Detected By Code', description: 'Code modules that identify this concept' },
+                      'TRADE_USES_CONCEPT': { label: 'Uses Concepts', description: 'Concepts applied in this trade' },
+                      'SCHEMA_VALIDATES': { label: 'Validates', description: 'Data validated by this schema' },
+                      'DOCUMENT_DEFINES': { label: 'Defines', description: 'Entities defined in this document' },
+                      'CONCEPT_PREREQUISITE': { label: 'Prerequisites', description: 'Required foundational concepts' }
+                    };
+
+                    return Object.entries(byType).map(([relType, items]) => (
+                      <div key={relType}>
+                        <div className="mb-3">
+                          <h4 className="text-sm font-semibold text-foreground">
+                            {relationshipLabels[relType]?.label || relType.replace(/_/g, ' ')}
+                          </h4>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {relationshipLabels[relType]?.description || ''}
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          {items.map(({ relationship, entity: relatedEntity }) => {
+                            if (!relatedEntity) return null;
+                            return (
+                              <div
+                                key={relationship.id}
+                                className="group p-3 rounded-lg bg-secondary/30 hover:bg-accent/20 hover:border-accent/50 border border-transparent transition-all cursor-pointer"
+                                onClick={() => {
+                                  onEntityClick(relatedEntity);
+                                }}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <span className="text-2xl transition-transform group-hover:scale-110">
+                                    {getEntityTypeIcon(relatedEntity.type)}
+                                  </span>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <p className="font-semibold text-foreground group-hover:text-accent transition-colors">
+                                        {relatedEntity.name}
+                                      </p>
+                                      <Badge variant="outline" className="text-xs">
+                                        {relatedEntity.type}
+                                      </Badge>
+                                    </div>
+                                    {relatedEntity.description && (
+                                      <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
+                                        {relatedEntity.description}
+                                      </p>
+                                    )}
+                                    {relatedEntity.tags && relatedEntity.tags.length > 0 && (
+                                      <div className="flex gap-1 mt-2 flex-wrap">
+                                        {relatedEntity.tags.slice(0, 3).map(tag => (
+                                          <Badge key={tag} variant="secondary" className="text-xs">
+                                            {tag}
+                                          </Badge>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="text-muted-foreground group-hover:text-accent transition-colors">
+                                    →
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                    );
-                  })}
+                    ));
+                  })()}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">No relationships found</p>
+                <div className="text-center py-8">
+                  <p className="text-sm text-muted-foreground">No relationships found</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    This entity is not connected to other entities in the knowledge graph
+                  </p>
+                </div>
               )}
             </TabsContent>
 

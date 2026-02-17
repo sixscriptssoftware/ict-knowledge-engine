@@ -55,6 +55,7 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
   const [selectedTypes, setSelectedTypes] = useState<EntityType[]>([]);
   const [zoom, setZoom] = useState(1);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
+  const [focusedNode, setFocusedNode] = useState<GraphNode | null>(null);
 
   const filteredEntities = selectedTypes.length > 0
     ? entities.filter(e => selectedTypes.includes(e.type))
@@ -64,6 +65,16 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
     filteredEntities.some(e => e.id === r.sourceId) &&
     filteredEntities.some(e => e.id === r.targetId)
   );
+
+  const getConnectedNodeIds = (nodeId: string): Set<string> => {
+    const connected = new Set<string>();
+    connected.add(nodeId);
+    filteredRelationships.forEach(rel => {
+      if (rel.sourceId === nodeId) connected.add(rel.targetId);
+      if (rel.targetId === nodeId) connected.add(rel.sourceId);
+    });
+    return connected;
+  };
 
   useEffect(() => {
     if (!svgRef.current || filteredEntities.length === 0) return;
@@ -112,7 +123,8 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
       .join('line')
       .attr('stroke', '#35354a')
       .attr('stroke-opacity', 0.6)
-      .attr('stroke-width', 2);
+      .attr('stroke-width', 2)
+      .attr('class', 'graph-link');
 
     const linkLabels = g.append('g')
       .selectAll('text')
@@ -177,26 +189,107 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
         return d.name.length > maxLength ? d.name.substring(0, maxLength) + '...' : d.name;
       });
 
+    const updateFocusMode = (focusNodeId: string | null) => {
+      if (focusNodeId) {
+        const connected = getConnectedNodeIds(focusNodeId);
+        
+        node.each(function(d) {
+          const isConnected = connected.has(d.id);
+          d3.select(this)
+            .select('circle')
+            .transition()
+            .duration(300)
+            .attr('opacity', isConnected ? 0.9 : 0.2)
+            .attr('r', d.id === focusNodeId ? 35 : 30);
+          
+          d3.select(this)
+            .select('text')
+            .transition()
+            .duration(300)
+            .attr('opacity', isConnected ? 1 : 0.3);
+        });
+        
+        link.each(function(l) {
+          const sourceId = typeof l.source === 'string' ? l.source : l.source.id;
+          const targetId = typeof l.target === 'string' ? l.target : l.target.id;
+          const isConnected = (sourceId === focusNodeId || targetId === focusNodeId);
+          
+          d3.select(this)
+            .transition()
+            .duration(300)
+            .attr('stroke-opacity', isConnected ? 0.8 : 0.1)
+            .attr('stroke-width', isConnected ? 3 : 2);
+        });
+        
+        linkLabels.each(function(l) {
+          const sourceId = typeof l.source === 'string' ? l.source : l.source.id;
+          const targetId = typeof l.target === 'string' ? l.target : l.target.id;
+          const isConnected = (sourceId === focusNodeId || targetId === focusNodeId);
+          
+          d3.select(this)
+            .transition()
+            .duration(300)
+            .attr('opacity', isConnected ? 1 : 0);
+        });
+      } else {
+        node.selectAll('circle')
+          .transition()
+          .duration(300)
+          .attr('opacity', 0.9)
+          .attr('r', 30);
+        
+        node.selectAll('text')
+          .transition()
+          .duration(300)
+          .attr('opacity', 1);
+        
+        link
+          .transition()
+          .duration(300)
+          .attr('stroke-opacity', 0.6)
+          .attr('stroke-width', 2);
+        
+        linkLabels
+          .transition()
+          .duration(300)
+          .attr('opacity', 1);
+      }
+    };
+
     node.on('click', (event, d) => {
-      onEntitySelect(d.entity);
+      if (event.shiftKey) {
+        if (focusedNode?.id === d.id) {
+          setFocusedNode(null);
+          updateFocusMode(null);
+        } else {
+          setFocusedNode(d);
+          updateFocusMode(d.id);
+        }
+      } else {
+        onEntitySelect(d.entity);
+      }
     })
     .on('mouseenter', (event, d) => {
       setHoveredNode(d);
-      d3.select(event.currentTarget)
-        .select('circle')
-        .transition()
-        .duration(200)
-        .attr('r', 40)
-        .attr('stroke-width', 5);
+      if (!focusedNode) {
+        d3.select(event.currentTarget)
+          .select('circle')
+          .transition()
+          .duration(200)
+          .attr('r', 40)
+          .attr('stroke-width', 5);
+      }
     })
-    .on('mouseleave', (event) => {
+    .on('mouseleave', (event, d) => {
       setHoveredNode(null);
-      d3.select(event.currentTarget)
-        .select('circle')
-        .transition()
-        .duration(200)
-        .attr('r', 30)
-        .attr('stroke-width', 3);
+      if (!focusedNode) {
+        d3.select(event.currentTarget)
+          .select('circle')
+          .transition()
+          .duration(200)
+          .attr('r', 30)
+          .attr('stroke-width', 3);
+      }
     });
 
     simulation.on('tick', () => {
@@ -213,10 +306,14 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
       node.attr('transform', d => `translate(${d.x},${d.y})`);
     });
 
+    if (focusedNode) {
+      updateFocusMode(focusedNode.id);
+    }
+
     return () => {
       simulation.stop();
     };
-  }, [filteredEntities, filteredRelationships, onEntitySelect]);
+  }, [filteredEntities, filteredRelationships, onEntitySelect, focusedNode]);
 
   const handleReset = () => {
     if (!svgRef.current) return;
@@ -337,7 +434,7 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
           style={{ background: 'radial-gradient(circle at center, oklch(0.18 0.02 264) 0%, oklch(0.15 0.02 264) 100%)' }}
         />
 
-        {hoveredNode && (
+        {hoveredNode && !focusedNode && (
           <div 
             className="absolute top-4 left-4 bg-card/95 border border-border rounded-lg p-4 max-w-xs backdrop-blur-sm shadow-xl"
           >
@@ -358,7 +455,47 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
             )}
             <div className="mt-3 pt-3 border-t border-border/50">
               <p className="text-xs text-muted-foreground">
-                Click to view details
+                Click to view details • Shift+Click to focus
+              </p>
+            </div>
+          </div>
+        )}
+
+        {focusedNode && (
+          <div 
+            className="absolute top-4 left-4 bg-accent/95 border border-accent rounded-lg p-4 max-w-xs backdrop-blur-sm shadow-xl"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div 
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: entityColors[focusedNode.type] }}
+                />
+                <Badge variant="outline" className="text-xs bg-accent-foreground/10">
+                  {entityLabels[focusedNode.type]}
+                </Badge>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-xs"
+                onClick={() => {
+                  setFocusedNode(null);
+                }}
+              >
+                Clear
+              </Button>
+            </div>
+            <h4 className="font-semibold text-sm mb-1 text-accent-foreground">{focusedNode.name}</h4>
+            <p className="text-xs text-accent-foreground/80 mb-3">
+              Showing connections to this entity
+            </p>
+            <div className="pt-3 border-t border-accent-foreground/20">
+              <p className="text-xs text-accent-foreground/70">
+                {(() => {
+                  const connected = getConnectedNodeIds(focusedNode.id);
+                  return `${connected.size - 1} connected entities`;
+                })()}
               </p>
             </div>
           </div>
@@ -398,6 +535,7 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
               <li>• Drag nodes to reposition</li>
               <li>• Scroll or pinch to zoom</li>
               <li>• Click node to view details</li>
+              <li>• <span className="font-semibold text-accent">Shift+Click</span> node to focus connections</li>
               <li>• Click badges to filter by type</li>
             </ul>
           </div>

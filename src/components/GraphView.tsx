@@ -452,26 +452,35 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
         onEntitySelect(d.entity);
       }
     })
-    .on('mouseenter', (event, d) => {
+    .on('mouseenter', function(event, d) {
       if (!focusedNode) {
         setHoveredNode(d);
-        d3.select(event.currentTarget)
-          .select('circle')
-          .transition()
-          .duration(200)
-          .attr('r', 35)
-          .attr('stroke-width', 5);
+        const circle = d3.select(this).select('circle');
+        const currentRadius = parseFloat(circle.attr('r'));
+        const currentStrokeWidth = parseFloat(circle.attr('stroke-width'));
+        
+        if (currentRadius === 30) {
+          circle
+            .transition()
+            .duration(200)
+            .attr('r', 35)
+            .attr('stroke-width', 5);
+        }
       }
     })
-    .on('mouseleave', (event) => {
+    .on('mouseleave', function(event, d) {
       if (!focusedNode) {
         setHoveredNode(null);
-        d3.select(event.currentTarget)
-          .select('circle')
-          .transition()
-          .duration(200)
-          .attr('r', 30)
-          .attr('stroke-width', 3);
+        const circle = d3.select(this).select('circle');
+        const currentRadius = parseFloat(circle.attr('r'));
+        
+        if (currentRadius === 35) {
+          circle
+            .transition()
+            .duration(200)
+            .attr('r', 30)
+            .attr('stroke-width', 3);
+        }
       }
     });
 

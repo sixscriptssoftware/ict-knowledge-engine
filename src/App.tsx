@@ -3,12 +3,13 @@ import { useKV } from '@github/spark/hooks';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
-import { Database, Tree, Upload, ChatsCircle, Graph } from '@phosphor-icons/react';
+import { Database, Tree, Upload, ChatsCircle, Graph, Brain } from '@phosphor-icons/react';
 import { DashboardView } from '@/components/DashboardView';
 import { ExplorerView } from '@/components/ExplorerView';
 import { UploadView } from '@/components/UploadView';
 import { ChatView } from '@/components/ChatView';
 import { GraphView } from '@/components/GraphView';
+import { PatternsView } from '@/components/PatternsView';
 import { EntityDetailDialog } from '@/components/EntityDetailDialog';
 import { processFile } from '@/lib/ai-processor';
 import { generateDemoData } from '@/lib/demo-data';
@@ -289,6 +290,10 @@ Provide a clear, concise answer. If you find relevant entities, mention them by 
               <Graph size={16} />
               Graph
             </TabsTrigger>
+            <TabsTrigger value="patterns" className="gap-2">
+              <Brain size={16} />
+              Patterns
+            </TabsTrigger>
             <TabsTrigger value="upload" className="gap-2">
               <Upload size={16} />
               Upload
@@ -312,6 +317,14 @@ Provide a clear, concise answer. If you find relevant entities, mention them by 
 
           <TabsContent value="graph">
             <GraphView 
+              entities={safeEntities}
+              relationships={safeRelationships}
+              onEntitySelect={handleEntitySelect}
+            />
+          </TabsContent>
+
+          <TabsContent value="patterns">
+            <PatternsView
               entities={safeEntities}
               relationships={safeRelationships}
               onEntitySelect={handleEntitySelect}

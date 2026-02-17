@@ -38,6 +38,7 @@
   --radius: 0.5rem;
 
   --warning: oklch(0.7 0.15 75);
+  --warning-foreground: oklch(0.15 0.02 264);
 }
 
 @theme {
@@ -60,6 +61,8 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
 
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Courier New', monospace;

@@ -4,7 +4,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowsClockwise, MagnifyingGlassMinus, MagnifyingGlassPlus, Target } from '@phosphor-icons/react';
+import { ArrowsClockwise, MagnifyingGlassMinus, MagnifyingGlassPlus, Target, Path } from '@phosphor-icons/react';
 import type { Entity, Relationship, EntityType, RelationshipType } from '@/lib/types';
 
 interface GraphViewProps {
@@ -56,15 +56,71 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
   const [zoom, setZoom] = useState(1);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [focusedNode, setFocusedNode] = useState<GraphNode | null>(null);
+  const [showChainOnly, setShowChainOnly] = useState(false);
 
-  const filteredEntities = selectedTypes.length > 0
+  const getChainEntitiesAndRelationships = () => {
+    const conceptIds = new Set(entities.filter(e => e.type === 'concept').map(e => e.id));
+    const modelIds = new Set(entities.filter(e => e.type === 'model').map(e => e.id));
+    const tradeIds = new Set(entities.filter(e => e.type === 'trade').map(e => e.id));
+
+    const conceptToModelRels = relationships.filter(r => 
+      (r.type === 'CONCEPT_USED_IN_MODEL' && conceptIds.has(r.sourceId) && modelIds.has(r.targetId)) ||
+      (r.type === 'TRADE_USES_CONCEPT' && conceptIds.has(r.targetId) && modelIds.has(r.sourceId))
+    );
+
+    const modelToTradeRels = relationships.filter(r => 
+      r.type === 'MODEL_PRODUCES_TRADE' && modelIds.has(r.sourceId) && tradeIds.has(r.targetId)
+    );
+
+    const conceptsInChain = new Set<string>();
+    const modelsInChain = new Set<string>();
+    const tradesInChain = new Set<string>();
+
+    modelToTradeRels.forEach(rel => {
+      const modelId = rel.sourceId;
+      const tradeId = rel.targetId;
+      
+      const hasConceptConnection = conceptToModelRels.some(cRel => 
+        cRel.targetId === modelId || cRel.sourceId === modelId
+      );
+
+      if (hasConceptConnection) {
+        modelsInChain.add(modelId);
+        tradesInChain.add(tradeId);
+        
+        conceptToModelRels.forEach(cRel => {
+          if (cRel.targetId === modelId) {
+            conceptsInChain.add(cRel.sourceId);
+          } else if (cRel.sourceId === modelId) {
+            conceptsInChain.add(cRel.targetId);
+          }
+        });
+      }
+    });
+
+    const chainEntityIds = new Set([...conceptsInChain, ...modelsInChain, ...tradesInChain]);
+    const chainEntities = entities.filter(e => chainEntityIds.has(e.id));
+    const chainRelationships = relationships.filter(r => 
+      chainEntityIds.has(r.sourceId) && chainEntityIds.has(r.targetId)
+    );
+
+    return { chainEntities, chainRelationships };
+  };
+
+  let filteredEntities = selectedTypes.length > 0
     ? entities.filter(e => selectedTypes.includes(e.type))
     : entities;
 
-  const filteredRelationships = relationships.filter(r => 
+  let filteredRelationships = relationships.filter(r => 
     filteredEntities.some(e => e.id === r.sourceId) &&
     filteredEntities.some(e => e.id === r.targetId)
   );
+
+  if (showChainOnly) {
+    const { chainEntities, chainRelationships } = getChainEntitiesAndRelationships();
+    filteredEntities = chainEntities;
+    filteredRelationships = chainRelationships;
+  }
 
   const getConnectedNodeIds = (nodeId: string): Set<string> => {
     const connected = new Set<string>();
@@ -432,6 +488,15 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant={showChainOnly ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setShowChainOnly(!showChainOnly)}
+            className="gap-2"
+          >
+            <Path size={16} />
+            {showChainOnly ? 'Chain View' : 'All Entities'}
+          </Button>
           <span className="text-xs text-muted-foreground">
             {filteredEntities.length} nodes · {filteredRelationships.length} edges
           </span>
@@ -574,7 +639,11 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
             <div className="text-center">
               <p className="text-muted-foreground mb-2">No entities to display</p>
               <p className="text-sm text-muted-foreground">
-                {selectedTypes.length > 0 ? 'Try adjusting your filters' : 'Load demo data to explore the knowledge graph'}
+                {showChainOnly 
+                  ? 'No complete concept→model→trade chains found'
+                  : selectedTypes.length > 0 
+                    ? 'Try adjusting your filters' 
+                    : 'Load demo data to explore the knowledge graph'}
               </p>
             </div>
           </div>
@@ -605,6 +674,7 @@ export function GraphView({ entities, relationships, onEntitySelect }: GraphView
               <li>• Click node to view details</li>
               <li>• <span className="font-semibold text-accent">Shift+Click</span> node to focus connections</li>
               <li>• Click badges to filter by type</li>
+              <li>• <span className="font-semibold text-accent">Chain View</span> shows only concept→model→trade paths</li>
             </ul>
           </div>
         </div>

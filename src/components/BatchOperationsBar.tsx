@@ -22,7 +22,8 @@ import {
   ArrowsClockwise, 
   X, 
   CheckSquare, 
-  SquaresFour 
+  SquaresFour,
+  DownloadSimple 
 } from '@phosphor-icons/react';
 import type { Entity, DomainType, EntityType } from '@/lib/types';
 
@@ -31,18 +32,22 @@ interface BatchOperationsBarProps {
   onClearSelection: () => void;
   onReclassify: (entities: Entity[], domain: DomainType, type: EntityType) => void;
   onDelete: (entities: Entity[]) => void;
+  onExport?: (entities: Entity[], format: 'json' | 'csv') => void;
 }
 
 export function BatchOperationsBar({ 
   selectedEntities, 
   onClearSelection,
   onReclassify,
-  onDelete 
+  onDelete,
+  onExport 
 }: BatchOperationsBarProps) {
   const [showReclassifyDialog, setShowReclassifyDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
   const [newDomain, setNewDomain] = useState<DomainType>('concepts');
   const [newType, setNewType] = useState<EntityType>('concept');
+  const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
 
   if (selectedEntities.length === 0) return null;
 
@@ -56,6 +61,13 @@ export function BatchOperationsBar({
     onDelete(selectedEntities);
     setShowDeleteDialog(false);
     onClearSelection();
+  };
+
+  const handleExport = () => {
+    if (onExport) {
+      onExport(selectedEntities, exportFormat);
+    }
+    setShowExportDialog(false);
   };
 
   const domainOptions: { value: DomainType; label: string }[] = [
@@ -113,6 +125,16 @@ export function BatchOperationsBar({
               >
                 <ArrowsClockwise size={16} />
                 Reclassify
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowExportDialog(true)}
+                className="gap-2"
+              >
+                <DownloadSimple size={16} />
+                Export
               </Button>
               
               <Button
@@ -248,6 +270,65 @@ export function BatchOperationsBar({
             <Button variant="destructive" onClick={handleDelete} className="gap-2">
               <Trash size={16} />
               Delete {selectedEntities.length} {selectedEntities.length === 1 ? 'Entity' : 'Entities'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DownloadSimple size={24} className="text-primary" />
+              Export Entities
+            </DialogTitle>
+            <DialogDescription>
+              Export {selectedEntities.length} {selectedEntities.length === 1 ? 'entity' : 'entities'} to JSON or CSV format.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Export Format</Label>
+              <Select value={exportFormat} onValueChange={(v) => setExportFormat(v as 'json' | 'csv')}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="json">JSON</SelectItem>
+                  <SelectItem value="csv">CSV</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {exportFormat === 'json' 
+                  ? 'Export as JSON with full entity data including metadata and relationships.'
+                  : 'Export as CSV with flattened entity data suitable for spreadsheet applications.'}
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-muted/50 p-3 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <SquaresFour size={16} />
+                Selected Entities
+              </div>
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {selectedEntities.map((entity) => (
+                  <div key={entity.id} className="text-sm text-muted-foreground flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 rounded bg-secondary">{entity.type}</span>
+                    <span className="truncate">{entity.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExportDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleExport} className="gap-2">
+              <DownloadSimple size={16} />
+              Export as {exportFormat.toUpperCase()}
             </Button>
           </DialogFooter>
         </DialogContent>

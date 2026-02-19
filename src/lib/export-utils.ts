@@ -1,67 +1,139 @@
-import type { Entity } from './types';
+import type { Entity } from '@/lib/types';
 
 export interface FilteredTradeData {
   id: string;
   name: string;
   type: string;
-  domain: string;
   pair?: string;
   direction?: string;
+  setup_type?: string;
+  entry?: number;
+  stop?: number;
+  target?: number;
+  risk_reward?: number;
   result?: string;
-  setup?: string;
+  grade?: number;
   killzone?: string;
   session?: string;
-  riskReward?: number;
-  grade?: number;
-  exampleType?: string;
-  entryPrice?: number;
-  stopLoss?: number;
-  target?: number;
-  pnl?: number;
-  concepts?: string[];
-  models?: string[];
   timestamp?: string;
 }
 
 export function prepareTradeDataForExport(entities: Entity[]): FilteredTradeData[] {
-  return entities
-    .filter(e => e.type === 'trade')
-    .map(trade => {
-      const metadata = trade.metadata || {};
-      const market = metadata.market || {};
-      const setup = metadata.setup || {};
-      const execution = metadata.execution || {};
-      const meta = metadata.meta || {};
-      const context = metadata.context || {};
-
-      return {
-        id: trade.id,
-        name: trade.name,
-        type: trade.type,
-        domain: trade.domain,
-        pair: market.pair || metadata.pair,
-        direction: setup.direction || market.direction || metadata.direction,
-        result: execution.result || metadata.result,
-        setup: setup.setup_type || metadata.setup_type,
-        killzone: context.killzone || metadata.killzone,
-        session: context.session || metadata.session,
-        riskReward: execution.risk_reward_ratio || metadata.risk_reward,
-        grade: metadata.grade || execution.grade,
-        exampleType: meta.example_type || metadata.example_type,
-        entryPrice: execution.entry_price || market.entry || metadata.entry,
-        stopLoss: execution.stop_loss || market.stop || metadata.stop,
-        target: execution.target || metadata.target,
-        pnl: execution.pnl || metadata.pnl,
-        concepts: metadata.concepts || [],
-        models: metadata.models || [],
-        timestamp: trade.createdAt
-      };
-    });
+  return entities.map(entity => {
+    const metadata = entity.metadata || {};
+    const execution = metadata.execution || {};
+    const setup = metadata.setup || {};
+    const market = metadata.market || {};
+    const time = metadata.time || {};
+    
+    return {
+      id: entity.id,
+      name: entity.name,
+      type: entity.type,
+      pair: market.pair || metadata.pair,
+      direction: market.direction || metadata.direction,
+      setup_type: setup.setup_type || metadata.setup_type,
+      entry: execution.entry_price || metadata.entry,
+      stop: execution.stop_loss || metadata.stop,
+      target: execution.target || metadata.target,
+      risk_reward: execution.risk_reward_ratio || metadata.risk_reward,
+      result: execution.result || metadata.result || metadata.meta?.example_type,
+      grade: metadata.grade || execution.grade || setup.quality_grade,
+      killzone: time.killzone || metadata.killzone,
+      session: time.session || metadata.session,
+      timestamp: metadata.meta?.timestamp || entity.createdAt
+    };
+  });
 }
 
-export function exportToCSV(data: FilteredTradeData[], filename: string = 'ict-trades-export.csv') {
+export function generateExportFilename(
+  baseName: string,
+  format: 'csv' | 'json',
+  filters?: Record<string, unknown>
+): string {
+  const date = new Date().toISOString().split('T')[0];
+  const hasFilters = filters && Object.values(filters).some(v => v !== undefined);
+  const filterSuffix = hasFilters ? '-filtered' : '';
+  return `${baseName}${filterSuffix}-${date}.${format}`;
+}
+
+export function exportToCSV(data: FilteredTradeData[], filename: string): void {
   if (data.length === 0) {
-    throw new Error('No data to export');
+    return;
+  }
+
+  const headers = Object.keys(data[0]);
+  
+  const escapeCSVValue = (value: unknown): string => {
+    const str = String(value ?? '');
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const csvContent = [
+    headers.map(escapeCSVValue).join(','),
+    ...data.map(row => headers.map(h => escapeCSVValue(row[h as keyof FilteredTradeData])).join(','))
+  ].join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+export function exportToJSON(data: FilteredTradeData[], filename: string): void {
+  const jsonString = JSON.stringify(data, null, 2);
+  const blob = new Blob([jsonString], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+export function exportFullEntities(entities: Entity[], filename: string): void {
+  const jsonString = JSON.stringify(entities, null, 2);
+  const blob = new Blob([jsonString], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+export function exportEntitiesToJSON(entities: Entity[]): void {
+  const jsonString = JSON.stringify(entities, null, 2);
+  const blob = new Blob([jsonString], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `ict-entities-export-${new Date().toISOString().split('T')[0]}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+export function exportEntitiesToCSV(entities: Entity[]): void {
+  if (entities.length === 0) {
+    return;
   }
 
   const headers = [
@@ -69,117 +141,55 @@ export function exportToCSV(data: FilteredTradeData[], filename: string = 'ict-t
     'Name',
     'Type',
     'Domain',
-    'Pair',
-    'Direction',
-    'Result',
-    'Setup',
-    'Killzone',
-    'Session',
-    'Risk/Reward',
-    'Grade',
-    'Example Type',
-    'Entry Price',
-    'Stop Loss',
-    'Target',
-    'P&L',
-    'Concepts',
-    'Models',
-    'Timestamp'
+    'Description',
+    'Source File',
+    'Created At',
+    'Updated At',
+    'Tags',
+    'Metadata'
   ];
 
-  const escapeCSV = (value: any): string => {
-    if (value === null || value === undefined) return '';
-    
-    if (Array.isArray(value)) {
-      value = value.join('; ');
+  const rows = entities.map(entity => [
+    entity.id,
+    entity.name,
+    entity.type,
+    entity.domain,
+    entity.description || '',
+    entity.sourceFile || '',
+    entity.createdAt,
+    entity.updatedAt || '',
+    (entity.tags || []).join('; '),
+    JSON.stringify(entity.metadata || {})
+  ]);
+
+  const escapeCSVValue = (value: string): string => {
+    if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+      return `"${value.replace(/"/g, '""')}"`;
     }
-    
-    const stringValue = String(value);
-    
-    if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
-      return `"${stringValue.replace(/"/g, '""')}"`;
-    }
-    
-    return stringValue;
+    return value;
   };
 
-  const csvRows = [
-    headers.join(','),
-    ...data.map(row => [
-      escapeCSV(row.id),
-      escapeCSV(row.name),
-      escapeCSV(row.type),
-      escapeCSV(row.domain),
-      escapeCSV(row.pair),
-      escapeCSV(row.direction),
-      escapeCSV(row.result),
-      escapeCSV(row.setup),
-      escapeCSV(row.killzone),
-      escapeCSV(row.session),
-      escapeCSV(row.riskReward),
-      escapeCSV(row.grade),
-      escapeCSV(row.exampleType),
-      escapeCSV(row.entryPrice),
-      escapeCSV(row.stopLoss),
-      escapeCSV(row.target),
-      escapeCSV(row.pnl),
-      escapeCSV(row.concepts),
-      escapeCSV(row.models),
-      escapeCSV(row.timestamp)
-    ].join(','))
-  ];
+  const csvContent = [
+    headers.map(escapeCSVValue).join(','),
+    ...rows.map(row => row.map(cell => escapeCSVValue(String(cell))).join(','))
+  ].join('\n');
 
-  const csvContent = csvRows.join('\n');
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  downloadBlob(blob, filename);
-}
-
-export function exportToJSON(data: FilteredTradeData[], filename: string = 'ict-trades-export.json') {
-  if (data.length === 0) {
-    throw new Error('No data to export');
-  }
-
-  const jsonContent = JSON.stringify(data, null, 2);
-  const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
-  downloadBlob(blob, filename);
-}
-
-export function exportFullEntities(entities: Entity[], filename: string = 'ict-entities-full-export.json') {
-  if (entities.length === 0) {
-    throw new Error('No entities to export');
-  }
-
-  const jsonContent = JSON.stringify(entities, null, 2);
-  const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
-  downloadBlob(blob, filename);
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = window.URL.createObjectURL(blob);
+  const url = URL.createObjectURL(blob);
+  
   const link = document.createElement('a');
   link.href = url;
-  link.download = filename;
+  link.download = `ict-entities-export-${new Date().toISOString().split('T')[0]}.csv`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  window.URL.revokeObjectURL(url);
+  URL.revokeObjectURL(url);
 }
 
-export function generateExportFilename(baseFilename: string, format: 'csv' | 'json', filters?: {
-  result?: string;
-  setup?: string;
-  riskReward?: number;
-  grade?: number;
-}): string {
-  const timestamp = new Date().toISOString().split('T')[0];
-  const parts = [baseFilename, timestamp];
-
-  if (filters) {
-    if (filters.result) parts.push(filters.result);
-    if (filters.setup) parts.push(filters.setup.replace(/\s+/g, '-').toLowerCase());
-    if (filters.riskReward) parts.push(`${filters.riskReward}R`);
-    if (filters.grade) parts.push(`grade${filters.grade}`);
+export function exportEntities(entities: Entity[], format: 'json' | 'csv'): void {
+  if (format === 'json') {
+    exportEntitiesToJSON(entities);
+  } else {
+    exportEntitiesToCSV(entities);
   }
-
-  return `${parts.join('-')}.${format}`;
 }

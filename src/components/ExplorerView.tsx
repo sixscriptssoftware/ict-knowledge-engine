@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getEntityTypeIcon } from '@/lib/ai-processor';
 import { BatchOperationsBar } from '@/components/BatchOperationsBar';
+import { exportEntities } from '@/lib/export-utils';
+import { toast } from 'sonner';
 import type { Entity, DomainType, EntityType } from '@/lib/types';
 
 interface ExplorerViewProps {
@@ -146,6 +148,19 @@ export function ExplorerView({ entities, onEntitySelect, onBatchReclassify, onBa
   const handleBatchDelete = (entities: Entity[]) => {
     if (onBatchDelete) {
       onBatchDelete(entities);
+    }
+  };
+
+  const handleBatchExport = (entities: Entity[], format: 'json' | 'csv') => {
+    try {
+      exportEntities(entities, format);
+      toast.success(`Exported ${entities.length} entities as ${format.toUpperCase()}`, {
+        description: `Downloaded ${entities.length} ${entities.length === 1 ? 'entity' : 'entities'} to your device`
+      });
+    } catch (error) {
+      toast.error('Export failed', {
+        description: error instanceof Error ? error.message : 'Failed to export entities'
+      });
     }
   };
 
@@ -414,6 +429,7 @@ export function ExplorerView({ entities, onEntitySelect, onBatchReclassify, onBa
         onClearSelection={clearSelection}
         onReclassify={handleBatchReclassify}
         onDelete={handleBatchDelete}
+        onExport={handleBatchExport}
       />
     </div>
   );

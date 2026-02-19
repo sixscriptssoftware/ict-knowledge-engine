@@ -248,6 +248,46 @@ function App() {
     setDetailDialogOpen(true);
   };
 
+  const handleBatchReclassify = (entitiesToReclassify: Entity[], newDomain: DomainType, newType: EntityType) => {
+    const entityIds = new Set(entitiesToReclassify.map(e => e.id));
+    
+    setEntities((currentEntities) => 
+      (currentEntities || []).map(entity => {
+        if (entityIds.has(entity.id)) {
+          return {
+            ...entity,
+            domain: newDomain,
+            type: newType,
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return entity;
+      })
+    );
+
+    toast.success(`Reclassified ${entitiesToReclassify.length} entities`, {
+      description: `Updated to ${newDomain} / ${newType}`
+    });
+  };
+
+  const handleBatchDelete = (entitiesToDelete: Entity[]) => {
+    const entityIds = new Set(entitiesToDelete.map(e => e.id));
+    
+    setEntities((currentEntities) => 
+      (currentEntities || []).filter(entity => !entityIds.has(entity.id))
+    );
+
+    setRelationships((currentRelationships) =>
+      (currentRelationships || []).filter(rel => 
+        !entityIds.has(rel.sourceId) && !entityIds.has(rel.targetId)
+      )
+    );
+
+    toast.success(`Deleted ${entitiesToDelete.length} entities`, {
+      description: 'All associated relationships removed'
+    });
+  };
+
   const handleAskQuestion = async (question: string): Promise<{ answer: string; sources: Entity[] }> => {
     const sessionId = sessionIdRef.current;
     const aiGraph = aiGraphRef.current;
@@ -449,6 +489,8 @@ Instructions:
             <ExplorerView 
               entities={safeEntities} 
               onEntitySelect={handleEntitySelect}
+              onBatchReclassify={handleBatchReclassify}
+              onBatchDelete={handleBatchDelete}
             />
           </TabsContent>
 

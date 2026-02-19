@@ -68,6 +68,13 @@ This is a full-featured knowledge management system with AI agent processing, mu
 - **Progression**: Ingest starts → File queue appears → Each file processes → Status updates in real-time → Extraction summaries appear → Completion notification → Dashboard stats update
 - **Success criteria**: Progress visible during ingestion, no UI freezing, errors clearly displayed, final counts match processed files
 
+### Batch Operations
+- **Functionality**: Multi-select mode in Explorer view allows selecting multiple entities (via checkboxes); batch reclassify to change domain and type for all selected entities at once; batch delete to remove multiple entities and all associated relationships simultaneously; confirmation dialogs show full list of affected entities before applying changes
+- **Purpose**: Enables efficient bulk management of entities when AI misclassifies items or when users need to reorganize large datasets; prevents tedious one-by-one editing
+- **Trigger**: User clicks "Select Multiple" button in Explorer, selects entities via checkboxes, clicks "Reclassify" or "Delete" in bottom action bar
+- **Progression**: Enable selection mode → Check entity boxes (or "Select All") → Selected count badge appears → Click Reclassify or Delete → Confirmation dialog shows affected entities → Choose new domain/type (reclassify) or confirm deletion → Batch operation executes → Toast confirmation → Selection cleared → View updates
+- **Success criteria**: Checkboxes appear on all entities in selection mode, selection persists while filtering/scrolling, batch operations update all selected entities atomically, related relationships cascade delete correctly, UI reflects changes immediately
+
 ## Edge Case Handling
 
 **Unsupported File Types**: Quietly skip with warning in ingest log, don't halt processing
@@ -78,6 +85,9 @@ This is a full-featured knowledge management system with AI agent processing, mu
 **Large Repos (1000+ files)**: Process in batches, show batch progress, allow cancellation
 **Conflicting Classifications**: Use AI confidence scores, allow user manual override with learning
 **Orphaned Relationships**: Display "broken link" indicator in graph, provide cleanup tool
+**Batch Operations on Filtered Results**: Selecting "All" only selects currently filtered/visible entities, not entire database
+**Batch Delete with No Relationships**: Delete completes successfully even if entities have no relationships
+**Empty Batch Operations**: Reclassify/Delete buttons disabled when no entities selected
 
 ## Design Direction
 

@@ -3,7 +3,7 @@ import { useKV } from '@github/spark/hooks';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
-import { Database, Tree, Upload, ChatsCircle, Graph, Brain, GraduationCap, Sparkle, MagicWand, Lightning } from '@phosphor-icons/react';
+import { Database, Tree, Upload, ChatsCircle, Graph, Brain, GraduationCap, Sparkle, MagicWand, Lightning, ChartLine } from '@phosphor-icons/react';
 import { DashboardView } from '@/components/DashboardView';
 import { ExplorerView } from '@/components/ExplorerView';
 import { UploadView } from '@/components/UploadView';
@@ -14,6 +14,7 @@ import { TrainingView } from '@/components/TrainingView';
 import { SemanticSearchView } from '@/components/SemanticSearchView';
 import { RecommendationsView } from '@/components/RecommendationsView';
 import { SkillsView } from '@/components/SkillsView';
+import { AnalyticsView } from '@/components/AnalyticsView';
 import { EntityDetailDialog } from '@/components/EntityDetailDialog';
 import { processFile } from '@/lib/ai-processor';
 import { generateDemoData } from '@/lib/demo-data';
@@ -471,6 +472,10 @@ Instructions:
               <Lightning size={16} />
               Skills
             </TabsTrigger>
+            <TabsTrigger value="analytics" className="gap-2">
+              <ChartLine size={16} />
+              Analytics
+            </TabsTrigger>
             <TabsTrigger value="upload" className="gap-2">
               <Upload size={16} />
               Upload
@@ -541,6 +546,12 @@ Instructions:
               relationships={safeRelationships}
               aiGraph={aiGraphRef.current}
               onEntitySelect={handleEntitySelect}
+            />
+          </TabsContent>
+
+          <TabsContent value="analytics">
+            <AnalyticsView
+              entities={safeEntities}
             />
           </TabsContent>
 

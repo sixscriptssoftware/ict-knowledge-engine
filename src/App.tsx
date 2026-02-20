@@ -3,7 +3,7 @@ import { useKV } from '@github/spark/hooks';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
-import { Database, Tree, Upload, ChatsCircle, Graph, Brain, GraduationCap, Sparkle, MagicWand, Lightning, ChartLine } from '@phosphor-icons/react';
+import { Database, Tree, Upload, ChatsCircle, Graph, Brain, GraduationCap, Sparkle, MagicWand, Lightning, ChartLine, BookOpenText, GithubLogo, ArrowSquareOut } from '@phosphor-icons/react';
 import { DashboardView } from '@/components/DashboardView';
 import { ExplorerView } from '@/components/ExplorerView';
 import { UploadView } from '@/components/UploadView';
@@ -15,6 +15,7 @@ import { SemanticSearchView } from '@/components/SemanticSearchView';
 import { RecommendationsView } from '@/components/RecommendationsView';
 import { SkillsView } from '@/components/SkillsView';
 import { AnalyticsView } from '@/components/AnalyticsView';
+import { ResearchView } from '@/components/ResearchView';
 import { EntityDetailDialog } from '@/components/EntityDetailDialog';
 import { processFile } from '@/lib/ai-processor';
 import { generateDemoData } from '@/lib/demo-data';
@@ -40,6 +41,33 @@ function App() {
   const safeUploads = uploads || [];
   const safeLogs = logs || [];
   const safeChatMessages = chatMessages || [];
+
+  // Auto-load ICT knowledge base on first visit
+  const [hasAutoLoaded, setHasAutoLoaded] = useKV<boolean>('auto-loaded-v2', false);
+  
+  useEffect(() => {
+    if (!hasAutoLoaded && safeEntities.length === 0) {
+      const { entities: demoEntities, relationships: demoRelationships } = generateDemoData();
+      setEntities(demoEntities);
+      setRelationships(demoRelationships);
+      setHasAutoLoaded(true);
+      
+      const uploadId = `auto-load-${Date.now()}`;
+      const upload: UploadType = {
+        id: uploadId,
+        type: 'folder',
+        name: 'ICT Knowledge Base (Auto-loaded)',
+        source: 'built-in',
+        fileCount: 36,
+        processedCount: 36,
+        status: 'completed',
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        errors: []
+      };
+      setUploads((currentUploads) => [upload, ...(currentUploads || [])]);
+    }
+  }, [hasAutoLoaded, safeEntities.length]);
 
   useEffect(() => {
     if (safeEntities.length > 0 || safeRelationships.length > 0) {
@@ -422,72 +450,97 @@ Instructions:
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border/50 bg-card/30 backdrop-blur">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Database size={28} className="text-primary" />
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <header className="border-b border-border/50 bg-card/30 backdrop-blur sticky top-0 z-50">
+        <div className="container mx-auto px-6 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/20">
+                <Database size={24} className="text-primary" weight="duotone" />
+              </div>
+              <div>
+                <h1 className="text-lg font-semibold tracking-tight">ICT Knowledge Engine</h1>
+                <p className="text-[11px] text-muted-foreground">AI-Powered Knowledge Graph</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-semibold">ICT Knowledge Engine</h1>
-              <p className="text-xs text-muted-foreground">AI-Powered Structured Database</p>
+            <div className="flex items-center gap-3">
+              {safeEntities.length > 0 && (
+                <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="px-2 py-1 rounded-md bg-primary/10 text-primary font-medium">{safeEntities.length} entities</span>
+                  <span className="px-2 py-1 rounded-md bg-accent/10 text-accent font-medium">{safeRelationships.length} relationships</span>
+                </div>
+              )}
+              <a
+                href="https://github.com/sixscriptssoftware/ict-knowledge-engine"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 rounded-lg hover:bg-secondary/50 transition-colors text-muted-foreground hover:text-foreground"
+                title="View on GitHub"
+              >
+                <GithubLogo size={20} weight="duotone" />
+              </a>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-6">
+      <main className="container mx-auto px-6 py-6 flex-1">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6">
-            <TabsTrigger value="dashboard" className="gap-2">
-              <Database size={16} />
-              Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="explorer" className="gap-2">
-              <Tree size={16} />
-              Explorer
-            </TabsTrigger>
-            <TabsTrigger value="search" className="gap-2">
-              <Sparkle size={16} />
-              Search
-            </TabsTrigger>
-            <TabsTrigger value="graph" className="gap-2">
-              <Graph size={16} />
-              Graph
-            </TabsTrigger>
-            <TabsTrigger value="patterns" className="gap-2">
-              <Brain size={16} />
-              Patterns
-            </TabsTrigger>
-            <TabsTrigger value="training" className="gap-2">
-              <GraduationCap size={16} />
-              Training
-            </TabsTrigger>
-            <TabsTrigger value="recommendations" className="gap-2">
-              <MagicWand size={16} />
-              Recommendations
-            </TabsTrigger>
-            <TabsTrigger value="skills" className="gap-2">
-              <Lightning size={16} />
-              Skills
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="gap-2">
-              <ChartLine size={16} />
-              Analytics
-            </TabsTrigger>
-            <TabsTrigger value="upload" className="gap-2">
-              <Upload size={16} />
-              Upload
-            </TabsTrigger>
-            <TabsTrigger value="chat" className="gap-2">
-              <ChatsCircle size={16} />
-              Chat
-            </TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto -mx-6 px-6 pb-2">
+            <TabsList className="mb-6 inline-flex w-max">
+              <TabsTrigger value="dashboard" className="gap-2">
+                <Database size={16} />
+                Dashboard
+              </TabsTrigger>
+              <TabsTrigger value="explorer" className="gap-2">
+                <Tree size={16} />
+                Explorer
+              </TabsTrigger>
+              <TabsTrigger value="search" className="gap-2">
+                <Sparkle size={16} />
+                Search
+              </TabsTrigger>
+              <TabsTrigger value="graph" className="gap-2">
+                <Graph size={16} />
+                Graph
+              </TabsTrigger>
+              <TabsTrigger value="patterns" className="gap-2">
+                <Brain size={16} />
+                Patterns
+              </TabsTrigger>
+              <TabsTrigger value="training" className="gap-2">
+                <GraduationCap size={16} />
+                Training
+              </TabsTrigger>
+              <TabsTrigger value="recommendations" className="gap-2">
+                <MagicWand size={16} />
+                Recommendations
+              </TabsTrigger>
+              <TabsTrigger value="skills" className="gap-2">
+                <Lightning size={16} />
+                Skills
+              </TabsTrigger>
+              <TabsTrigger value="analytics" className="gap-2">
+                <ChartLine size={16} />
+                Analytics
+              </TabsTrigger>
+              <TabsTrigger value="research" className="gap-2">
+                <BookOpenText size={16} />
+                Research
+              </TabsTrigger>
+              <TabsTrigger value="upload" className="gap-2">
+                <Upload size={16} />
+                Upload
+              </TabsTrigger>
+              <TabsTrigger value="chat" className="gap-2">
+                <ChatsCircle size={16} />
+                Chat
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="dashboard">
-            <DashboardView stats={stats} />
+            <DashboardView stats={stats} onNavigate={setActiveTab} />
           </TabsContent>
 
           <TabsContent value="explorer">
@@ -555,6 +608,10 @@ Instructions:
             />
           </TabsContent>
 
+          <TabsContent value="research">
+            <ResearchView />
+          </TabsContent>
+
           <TabsContent value="upload">
             <UploadView
               uploads={safeUploads}
@@ -573,6 +630,41 @@ Instructions:
           </TabsContent>
         </Tabs>
       </main>
+
+      <footer className="border-t border-border/50 bg-card/20 backdrop-blur mt-auto">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-foreground/70">ICT Knowledge Engine</span>
+              <span>v2.0</span>
+              <span className="text-border">|</span>
+              <span>Built by <a href="https://github.com/sixscriptssoftware" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">SixScripts Software</a></span>
+            </div>
+            <div className="flex items-center gap-4">
+              <a 
+                href="https://notebooklm.google.com/notebook/0c01de2c-bd21-4331-9caa-367bfa77a992"
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 hover:text-primary transition-colors"
+              >
+                <BookOpenText size={14} />
+                NotebookLM Research
+                <ArrowSquareOut size={12} />
+              </a>
+              <a 
+                href="https://github.com/sixscriptssoftware/ict-knowledge-engine"
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 hover:text-primary transition-colors"
+              >
+                <GithubLogo size={14} />
+                Source Code
+                <ArrowSquareOut size={12} />
+              </a>
+            </div>
+          </div>
+        </div>
+      </footer>
 
       <EntityDetailDialog
         entity={selectedEntity}
